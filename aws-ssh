@@ -1,0 +1,88 @@
+#! /usr/bin/env bash
+
+_get_bastion_ip() {
+  set -- $(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=*astion*" \
+    --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress]" \
+    --output text)
+
+  BASTION_IP=${1}
+  SSH_KEYNAME=${2}
+  BASTION_PRIVATE_IP=${3}
+}
+
+_get_ecs_private_ips() {
+  ECS_HOST_IPS=$(aws ec2 describe-instances \
+    --filters "Name=tag:ECSClusterName,Values=*" \
+    --query "Reservations[*].Instances[*].[PrivateIpAddress]" \
+    --output text)
+}
+
+_get_rds_endpoints() {
+  RDS_ENDPOINTS=$(aws rds describe-db-instances \
+    --query "DBInstances[*].Endpoint.[Address,Port]" \
+    --output text)
+}
+
+_load_private_key() {
+  ### Load the private Key
+  if ssh-add -l | grep -q ${SSH_KEYNAME}
+  then
+    echo "INFO - Private key ${SSH_KEYNAME} already loaded"
+  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} ]]
+  then
+    ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
+  else
+    echo "ERROR - Private key ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} not found"
+    exit 1
+  fi
+}
+
+BASTION_IP=""
+BASTION_PRIVATE_IP=""
+SSH_KEYNAME=""
+ECS_HOST_IPS=""
+RDS_ENDPOINTS=""
+
+_get_bastion_ip
+_get_ecs_private_ips
+_load_private_key
+
+#echo ${BASTION_IP}
+#echo ${SSH_KEYNAME}
+
+
+case ${1} in
+  bastion )
+    echo "INFO - Log in to bastion account"
+    ssh -t -A ec2-user@${BASTION_IP}
+    ;;
+  ecs )
+    echo "INFO - Show commands to connect to ec2 instances"
+    for h in ${ECS_HOST_IPS:-}
+    do
+      echo "ssh -t -A ec2-user@${BASTION_IP} 'ssh -A ${h}'"
+    done
+    ;;
+  rdstunnel )
+    echo "INFO - Show command to setup tunnel to RDS"
+    _get_rds_endpoints
+    set -- ${RDS_ENDPOINTS}
+    while [[ ${#} -gt 1 ]]
+    do
+      ENDPOINT=${1}
+      PORT=${2}
+      shift; shift
+      echo "ssh -f -Nnt -A -L ${PORT}:${ENDPOINT}:${PORT} ec2-user@${BASTION_IP}"
+    done
+    ;;
+  dockerps )
+    echo "INFO - Show docker container info on all ECS hosts"
+    for h in ${ECS_HOST_IPS:-}
+    do
+      echo "INFO - Show docker containers on ${h}"
+      ssh -t -A ec2-user@${BASTION_IP} "ssh -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
+    done
+    ;;
+
+esac
