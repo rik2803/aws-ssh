@@ -1,4 +1,4 @@
-# `aws-ssh-tunnel`
+# `aws-ssh`
 
 ## Introduction
 
@@ -31,6 +31,25 @@ to:
   account.
   
 ## Subcommands
+
+### `bastion`
+
+Start a `ssh` session on the _Bastion_ host.
+
+```
+$ ~/projects/AWS/aws-ssh/aws-ssh bastion
+INFO - Private key id_rsa_XXXXXXXX already loaded
+INFO - Log in to bastion account
+Last login: Thu Oct  4 06:03:16 2018 from host.acme.com
+
+       __|  __|_  )
+       _|  (     /   Amazon Linux 2 AMI
+      ___|\___|___|
+
+https://aws.amazon.com/amazon-linux-2/
+27 package(s) needed for security, out of 374 available
+Run "sudo yum update" to apply all updates.
+```
 
 ### `ecs`
 
