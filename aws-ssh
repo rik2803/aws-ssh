@@ -5,10 +5,15 @@ _get_bastion_ip() {
     --filters "Name=tag:Name,Values=*astion*" \
     --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress]" \
     --output text)
-
-  BASTION_IP=${1}
-  SSH_KEYNAME=${2}
-  BASTION_PRIVATE_IP=${3}
+  if [ -n ${1} -a -n ${2} -a -n ${3} ]
+  then
+    BASTION_IP=${1}
+    SSH_KEYNAME=${2}
+    BASTION_PRIVATE_IP=${3}
+  else
+    echo "ERROR - Unable to find a bastion EC2 instance"
+    exit 1
+  fi
 }
 
 _get_ecs_private_ips() {
@@ -16,12 +21,25 @@ _get_ecs_private_ips() {
     --filters "Name=tag:ECSClusterName,Values=*" \
     --query "Reservations[*].Instances[*].[PrivateIpAddress]" \
     --output text)
+
+  if [[ -z ${ECS_HOST_IPS} ]]
+  then
+    echo "ERROR - Unable to find ECS hosts"
+    exit 1
+  fi
 }
 
 _get_rds_endpoints() {
   RDS_ENDPOINTS=$(aws rds describe-db-instances \
     --query "DBInstances[*].Endpoint.[Address,Port]" \
     --output text)
+
+  if [ -z ${RDS_ENDPOINTS} ]
+  then
+    echo "ERROR - Unable to find RDS instances"
+    exit 1
+  fi
+
 }
 
 _load_private_key() {
@@ -32,6 +50,9 @@ _load_private_key() {
   elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} ]]
   then
     ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
+  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME} ]]
+  then
+    ssh-add ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}
   else
     echo "ERROR - Private key ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} not found"
     exit 1
@@ -44,13 +65,17 @@ SSH_KEYNAME=""
 ECS_HOST_IPS=""
 RDS_ENDPOINTS=""
 
-_get_bastion_ip
-_get_ecs_private_ips
-_load_private_key
 
-#echo ${BASTION_IP}
-#echo ${SSH_KEYNAME}
-
+case ${1} in
+  bastion|ecs|rdstunnel|dockerps )
+    _get_bastion_ip
+    _load_private_key
+    ;;
+  * )
+    echo "INFO - Usage:"
+    echo "INFO -   ${0} bastion|ecs|rdstunnel|dockerps"
+    ;;
+esac
 
 case ${1} in
   bastion )
@@ -58,10 +83,14 @@ case ${1} in
     ssh -t -A ec2-user@${BASTION_IP}
     ;;
   ecs )
+    _get_ecs_private_ips
     echo "INFO - Show commands to connect to ec2 instances"
     for h in ${ECS_HOST_IPS:-}
     do
-      echo "ssh -t -A ec2-user@${BASTION_IP} 'ssh -A ${h}'"
+      if [[ ${h} != "None" ]]
+      then
+        echo "ssh -t -A ec2-user@${BASTION_IP} 'ssh -A ${h}'"
+      fi
     done
     ;;
   rdstunnel )
@@ -78,10 +107,14 @@ case ${1} in
     ;;
   dockerps )
     echo "INFO - Show docker container info on all ECS hosts"
+    _get_ecs_private_ips
     for h in ${ECS_HOST_IPS:-}
     do
-      echo "INFO - Show docker containers on ${h}"
-      ssh -t -A ec2-user@${BASTION_IP} "ssh -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
+      if [[ ${h} != "None" ]]
+      then
+        echo "INFO - Show docker containers on ${h}"
+        ssh -t -A ec2-user@${BASTION_IP} "ssh -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
+      fi
     done
     ;;
 
