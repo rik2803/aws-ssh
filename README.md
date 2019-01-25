@@ -155,7 +155,7 @@ $ ssh-add -l | wc -l
        7
 ```
 
-Remove the keys you will not be using soon until you hav 5 or less:
+Remove the keys you will not be using soon until you have 5 or less:
 
 ```
 $ ssh-add -d <full-path-to-private-key>
