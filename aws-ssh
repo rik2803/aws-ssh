@@ -55,9 +55,15 @@ _load_private_key() {
   elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} ]]
   then
     ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
+  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}.pem ]]
+  then
+    ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}.pem
   elif [[ -e ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME} ]]
   then
     ssh-add ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}
+  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}.pem ]]
+  then
+    ssh-add ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}.pem
   else
     echo "ERROR - Private key ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} not found"
     exit 1
