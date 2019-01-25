@@ -28,7 +28,7 @@ _get_ecs_private_ips() {
 
   ECS_HOST_IPS="${ECS_HOST_IPS_1} ${ECS_HOST_IPS_2}"
 
-  ECS_HOST_IPS_ARRAY=(${ECS_HOST_IPS})
+  ECS_HOST_IPS_ARRAY=(${ECS_HOST_IPS//None/})
 
   if [[ -z ${ECS_HOST_IPS} ]]
   then
