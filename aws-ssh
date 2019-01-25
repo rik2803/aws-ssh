@@ -17,11 +17,16 @@ _get_bastion_ip() {
 }
 
 _get_ecs_private_ips() {
-  ECS_HOST_IPS=$(aws ec2 describe-instances \
+  ECS_HOST_IPS_1=$(aws ec2 describe-instances \
     --filters "Name=tag:ECSClusterName,Values=*" \
     --query "Reservations[*].Instances[*].[PrivateIpAddress]" \
     --output text)
+  ECS_HOST_IPS_2=$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=*ECS*" \
+    --query "Reservations[*].Instances[*].[PrivateIpAddress]" \
+    --output text)
 
+  ECS_HOST_IPS="${ECS_HOST_IPS_1} ${ECS_HOST_IPS_2}"
   if [[ -z ${ECS_HOST_IPS} ]]
   then
     echo "ERROR - Unable to find ECS hosts"
