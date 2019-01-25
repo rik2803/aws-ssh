@@ -5,6 +5,7 @@
 Having active AWS credentials, show and execute the `ssh` commandline to connect
 to:
 
+* Bastion host
 * ECS host
 * RDS database instance
 
@@ -51,6 +52,23 @@ https://aws.amazon.com/amazon-linux-2/
 Run "sudo yum update" to apply all updates.
 ```
 
+You can optionally add a command to execute on the remote host:
+
+```
+$ aws-ssh bastion sudo ip a
+INFO - Private key id_rsa_ixor.ixordocs-prd already loaded
+INFO - Log in to bastion account
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+...
+Connection to 1.2.3.4 closed.
+[~][aws: ixordocs-prd]
+```
+
 ### `ecs`
 
 When running `aws-ssh ecs`, the `ssh` commands to connect to the ECS hosts
@@ -63,6 +81,25 @@ INFO - Show commands to connect to ec2 instances
 ssh -t -A ec2-user@1.2.3.4 'ssh -A 5.6.7.8'
 ssh -t -A ec2-user@1.2.3.4 'ssh -A 9.10.11.12'
 ```
+
+When only 1 ECS host was found, the `ssh` command will be executed rather than
+printed on `stdout`.
+
+You can optionally add a command to execute on the remote host:
+
+```bash
+$ aws-ssh ecs docker stats
+$ aws-ssh ecs docker info
+INFO - Private key id_rsa_ixor.ixordocs-prd already loaded
+INFO - Show commands to connect to ECS ec2 instances
+Containers: 8
+ Running: 8
+ Paused: 0
+ Stopped: 0
+Images: 9
+...
+```
+
 
 ### `dockerps`
 
