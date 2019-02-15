@@ -110,10 +110,10 @@ case ${1} in
     do
       if [[ ${h} != "None" ]]
       then
-        echo "ssh -t -A ec2-user@${BASTION_IP} 'ssh -A ${h} ${@}'"
+        echo "ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} 'ssh ${SSH_OPTIONS} -A ${h} ${@}'"
         if [[ ${#ECS_HOST_IPS_ARRAY[@]} -eq 1 ]]
         then
-          ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh -A ${h} ${@}"
+          ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} ${@}"
         fi
       fi
     done
@@ -127,7 +127,7 @@ case ${1} in
       ENDPOINT=${1}
       PORT=${2}
       shift; shift
-      echo "ssh -f -Nnt -A -L ${PORT}:${ENDPOINT}:${PORT} ec2-user@${BASTION_IP}"
+      echo "ssh ${SSH_OPTIONS} -f -Nnt -A -L ${PORT}:${ENDPOINT}:${PORT} ec2-user@${BASTION_IP}"
     done
     ;;
   dockerps )
@@ -138,7 +138,7 @@ case ${1} in
       if [[ ${h} != "None" ]]
       then
         echo "INFO - Show docker containers on ${h}"
-        ssh -t -A ec2-user@${BASTION_IP} "ssh -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
+        ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
       fi
     done
     ;;
