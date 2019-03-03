@@ -5,7 +5,7 @@ _get_bastion_ip() {
     --filters "Name=tag:Name,Values=*astion*" \
     --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress]" \
     --output text)
-  if [ -n ${1} -a -n ${2} -a -n ${3} ]
+  if [ -n "${1}" -a -n "${2}" -a -n "${3}" ]
   then
     BASTION_IP=${1}
     SSH_KEYNAME=${2}
