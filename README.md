@@ -31,6 +31,19 @@ to:
   be connected in order to be able to `ssh` in to the resources in that
   account.
   
+## Environment Variables
+
+### `PRIVKEYHOME`
+
+The directory where `assumerole` will look for private keys. The default location
+is `~/.ssh`.
+
+### `ASSUMEROLE_FORCE_SSH_KEY`
+
+The name of the private key to use to connect to the EC2 instances. The key will
+be searched in `PRIVKEYHOME` if it is a relative path (does not start with a `/`).
+If the name starts with a `/`, that absolute path will be used.
+
 ## Subcommands
 
 ### `bastion`

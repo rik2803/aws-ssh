@@ -8,7 +8,17 @@ _get_bastion_ip() {
   if [ -n "${1}" -a -n "${2}" -a -n "${3}" ]
   then
     BASTION_IP=${1}
-    SSH_KEYNAME=${2}
+    if [[ -n ${ASSUMEROLE_FORCE_SSH_KEY} ]]
+    then
+      SSH_KEYNAME=${ASSUMEROLE_FORCE_SSH_KEY}
+    else
+      SSH_KEYNAME=${2}
+    fi
+    if [[ ${SSH_KEYNAME} != /* ]]
+    then
+      SSH_KEYNAME=${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
+    fi
+
     BASTION_PRIVATE_IP=${3}
   else
     echo "ERROR - Unable to find a bastion EC2 instance"
@@ -52,23 +62,25 @@ _get_rds_endpoints() {
 
 _load_private_key() {
   ### Load the private Key
-  if ssh-add -l | grep -q ${SSH_KEYNAME}
+  KEYDIRNAME=$(dirname ${SSH_KEYNAME})
+  KEYBASENAME=$(basename ${SSH_KEYNAME})
+  if ssh-add -l | grep -q $(basename ${SSH_KEYNAME})
   then
     echo "INFO - Private key ${SSH_KEYNAME} already loaded"
-  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} ]]
+  elif [[ -e ${KEYDIRNAME}/${KEYBASENAME} ]]
   then
-    ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
-  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}.pem ]]
+    ssh-add ${KEYDIRNAME}/${KEYBASENAME}
+  elif [[ -e ${KEYDIRNAME}/${KEYBASENAME}.pem ]]
   then
-    ssh-add ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}.pem
-  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME} ]]
+    ssh-add ${KEYDIRNAME}/${KEYBASENAME}.pem
+  elif [[ -e ${KEYDIRNAME}/id_rsa_${KEYBASENAME} ]]
   then
-    ssh-add ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}
-  elif [[ -e ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}.pem ]]
+    ssh-add ${KEYDIRNAME}/id_rsa_${KEYBASENAME}
+  elif [[ -e ${KEYDIRNAME}/id_rsa_${KEYBASENAME}.pem ]]
   then
-    ssh-add ${PRIVKEYHOME:-~/.ssh}/id_rsa_${SSH_KEYNAME}.pem
+    ssh-add ${KEYDIRNAME}/id_rsa_${KEYBASENAME}.pem
   else
-    echo "ERROR - Private key ${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME} not found"
+    echo "ERROR - Private key ${SSH_KEYNAME} not found"
     exit 1
   fi
 }
