@@ -105,6 +105,12 @@ case ${1} in
     echo "INFO -   ${0} ecs [command]"
     echo "INFO -   ${0} dockerps"
     echo "INFO -   ${0} rdstunnel"
+    echo ""
+    echo "Set PRIVKEYHOME envvar to tell me where your private keys are."
+    echo "Default is ~/.ssh"
+    echo "Set ASSUMEROLE_FORCE_SSH_KEY to override use of bastions key"
+    echo "in favor of your own key (requires your pubkey to be present"
+    echo "on the EC2 instances)"
     ;;
 esac
 
