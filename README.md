@@ -114,6 +114,41 @@ Images: 9
 ```
 
 
+### `ecsservicetunnel`
+
+Set up a tunnel to a service running in an ECS cluster.
+
+```
+$ aws-ssh ecsservicetunnel preproc 8844
+INFO - Private key /Users/rik/AWS/xxxxxxxxxxxxx already loaded
+INFO: Tunnel to service  is established on localhost:8844
+      The tunnel is running in the background, do not forget to kill the
+      corresponding ssh process.
+```
+
+Once the tunnel is successfully set up, you can connect to is using the port you specified
+on the commandline (default local port is `9999`).
+
+```
+$ curl http://localhost:8844
+{
+  "_links" : {
+    "profile" : {
+      "href" : "http://localhost:8844/profile"
+    }
+  }
+}
+```
+
+The command syntax is:
+
+```aws-ssh ecsservicetunnel string [port]```
+
+Where:
+
+* `string`: The tunnel is setup to the first service that matches `string`
+* `port`: The local port to use, defaults to `9999`
+
 ### `dockerps`
 
 Show all _Docker_ containers running on the AWS account. Useful if you want to connect

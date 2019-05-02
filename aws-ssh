@@ -1,5 +1,35 @@
 #! /usr/bin/env bash
 
+_get_service_port_and_ecshost() {
+  SERVICENAME=${1:-unknown}
+  LOCALPORT=${2:-9999}
+
+  _get_ecs_private_ips >/dev/null 2>&1
+  RESULT=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
+  do
+    if [[ ${h} != "None" ]]
+    then
+      echo -n "${h} "
+      ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
+        ec2-user@${h} "docker ps --filter \"name=${SERVICE}\" --format \"{{.Ports}}\\\t{{.Image}}\"" | \
+        awk -F ':' '{print $2}' | awk -F '-' '{print $1}'
+    fi
+  done | head -1)
+
+  set -- ${RESULT}
+
+  ssh -f -Nn -J ec2-user@${BASTION_IP} -L ${LOCALPORT}:localhost:${2} ec2-user@${1}
+
+  if [[ $? -eq 0 ]]
+  then
+    echo "INFO: Tunnel to service ${SERVICENAME} is established on localhost:${LOCALPORT}"
+    echo "      The tunnel is running in the background, do not forget to kill the"
+    echo "      corresponding ssh process."
+  else
+    echo "ERROR: An error occured setting up the tunnel to service ${SERVICE}"
+  fi
+}
+
 _get_bastion_ip() {
   set -- $(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=*astion*" \
@@ -95,7 +125,7 @@ RDS_ENDPOINTS=""
 SSH_OPTIONS="-oStrictHostKeyChecking=no"
 
 case ${1} in
-  bastion|ecs|rdstunnel|dockerps )
+  bastion|ecs|rdstunnel|dockerps|ecsservicetunnel )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -105,6 +135,7 @@ case ${1} in
     echo "INFO -   ${0} ecs [command]"
     echo "INFO -   ${0} dockerps"
     echo "INFO -   ${0} rdstunnel"
+    echo "INFO -   ${0} ecsservicetunnel <service>"
     echo ""
     echo "Set PRIVKEYHOME envvar to tell me where your private keys are."
     echo "Default is ~/.ssh"
@@ -159,6 +190,9 @@ case ${1} in
         ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
       fi
     done
+    ;;
+  ecsservicetunnel)
+    _get_service_port_and_ecshost "${2:unknown}" "${3}"
     ;;
 
 esac
