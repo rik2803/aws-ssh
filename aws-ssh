@@ -10,10 +10,11 @@ _get_service_port_and_ecshost_and_dockerid() {
     then
       echo -n "${h} "
       ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
-        ec2-user@${h} "docker ps --filter \"name=${SERVICE}\" --format \"{{.Ports}}\"" | \
+        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.Ports}}\"" | \
         awk -F ':' '{print $2}' | awk -F '-' '{print $1}'
+      echo
     fi
-  done | head -1)
+  done | grep -v ^$ | head -1)
 
   ECSHOST_AND_ID=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
   do
@@ -21,20 +22,28 @@ _get_service_port_and_ecshost_and_dockerid() {
     then
       echo -n "${h} "
       ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
-        ec2-user@${h} "docker ps --filter \"name=${SERVICE}\" --format \"{{.ID}}\""
+        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.ID}}\""
+      echo
     fi
-  done | head -1)
+  done | grep -v ^$ | head -1)
 
-  echo "${ECSHOST_AND_PORT} ${ECSHOST_AND_ID}"
+  if [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_PORT}; echo $#) -eq 2 ]] && \
+     [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_ID}; echo $#) -eq 2 ]]
+  then
+    set -- ${ECSHOST_AND_PORT} ${ECSHOST_AND_ID}
+    ECSHOST=${1}
+    DOCKERPORT=${2}
+    DOCKERID=${4}
+  else
+    echo "ERROR: No container found where the name contains ${SERVICENAME}"
+    exit 1
+  fi
 }
 
 _tunnel_to_ecs_service() {
   SERVICENAME=${1:-unknown}
   LOCALPORT=${2:-9999}
-  set -- $(_get_service_port_and_ecshost_and_dockerid ${SERVICENAME}) 
-  ECSHOST=${1}
-  DOCKERPORT=${2}
-  DOCKERID=${4}
+  _get_service_port_and_ecshost_and_dockerid ${SERVICENAME}
 
   ssh -f -Nn -J ec2-user@${BASTION_IP} -L ${LOCALPORT}:localhost:${DOCKERPORT} ec2-user@${ECSHOST}
 
@@ -51,10 +60,7 @@ _tunnel_to_ecs_service() {
 _dockerexec() {
   SERVICENAME=${1}
   CMD=${2}
-  set -- $(_get_service_port_and_ecshost_and_dockerid ${SERVICENAME})
-  ECSHOST=${1}
-  DOCKERPORT=${2}
-  DOCKERID=${4}
+  _get_service_port_and_ecshost_and_dockerid ${SERVICENAME}
 
   ssh -tt -J ec2-user@${BASTION_IP} ec2-user@${ECSHOST} "docker exec -ti ${DOCKERID} ${CMD}"
 }
