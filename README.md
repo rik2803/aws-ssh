@@ -114,6 +114,25 @@ Images: 9
 ```
 
 
+### `dockerexec`
+
+Run a command on a docker container running in an ECS cluster.
+
+```
+$ aws-ssh dockerexec string /bin/sh
+INFO - Private key /Users/rik/AWS/xxxxxxxxxxxxx already loaded
+$
+```
+
+The command syntax is:
+
+```aws-ssh dockerps string [command]```
+
+Where:
+
+* `string`: The command is run on the first container whose name matches `string`
+* `cmd`: The command to run, defaults to `/bin/bash`.
+
 ### `ecsservicetunnel`
 
 Set up a tunnel to a service running in an ECS cluster.
