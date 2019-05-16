@@ -80,9 +80,9 @@ _get_bastion_ip() {
   if [ -n "${1}" -a -n "${2}" -a -n "${3}" ]
   then
     BASTION_IP=${1}
-    if [[ -n ${ASSUMEROLE_FORCE_SSH_KEY} ]]
+    if [[ -n ${AWS_SSH_FORCE_SSH_KEY} ]]
     then
-      SSH_KEYNAME=${ASSUMEROLE_FORCE_SSH_KEY}
+      SSH_KEYNAME=${AWS_SSH_FORCE_SSH_KEY}
     else
       SSH_KEYNAME=${2}
     fi
@@ -182,7 +182,7 @@ case ${1} in
     echo ""
     echo "Set PRIVKEYHOME envvar to tell me where your private keys are."
     echo "Default is ~/.ssh"
-    echo "Set ASSUMEROLE_FORCE_SSH_KEY to override use of bastions key"
+    echo "Set AWS_SSH_FORCE_SSH_KEY to override use of bastions key"
     echo "in favor of your own key (requires your pubkey to be present"
     echo "on the EC2 instances)"
     ;;

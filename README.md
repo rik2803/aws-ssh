@@ -38,7 +38,7 @@ to:
 The directory where `assumerole` will look for private keys. The default location
 is `~/.ssh`.
 
-### `ASSUMEROLE_FORCE_SSH_KEY`
+### `AWS_SSH_FORCE_SSH_KEY`
 
 The name of the private key to use to connect to the EC2 instances. The key will
 be searched in `PRIVKEYHOME` if it is a relative path (does not start with a `/`).
