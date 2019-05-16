@@ -4,28 +4,35 @@ _get_service_port_and_ecshost_and_dockerid() {
   SERVICENAME=${1:-unknown}
 
   _get_ecs_private_ips >/dev/null 2>&1
+
   ECSHOST_AND_PORT=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
   do
     if [[ ${h} != "None" ]]
     then
-      echo -n "${h} "
-      ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
+      PORT=$(ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
         ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.Ports}}\"" | \
-        awk -F ':' '{print $2}' | awk -F '-' '{print $1}'
-      echo
+        awk -F ':' '{print $2}' | awk -F '-' '{print $1}')
+      if [[ -n ${PORT} ]]
+      then
+        echo "${h} ${PORT}"
+        break
+      fi
     fi
-  done | grep -v ^$ | head -1)
+  done)
 
   ECSHOST_AND_ID=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
   do
     if [[ ${h} != "None" ]]
     then
-      echo -n "${h} "
-      ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
-        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.ID}}\""
-      echo
+      ID=$(ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
+        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.ID}}\"")
+      if [[ -n ${ID} ]]
+      then
+        echo "${h} ${ID}"
+        break
+      fi
     fi
-  done | grep -v ^$ | head -1)
+  done)
 
   if [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_PORT}; echo $#) -eq 2 ]] && \
      [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_ID}; echo $#) -eq 2 ]]
