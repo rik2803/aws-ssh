@@ -25,7 +25,7 @@ to:
 * A valid private SSH key for the account. The SSH key should have the
   name as the key name in AWS, and should be available in the directory
   `~/.ssh` (default) or the directory set in the environment variable
-  `${PRIVKEYHOME}`. The private key will be loaded with `ssh-add` if not
+  `${AWS_SSH_PRIVKEYHOME}`. The private key will be loaded with `ssh-add` if not
   already loaded.
 * If access to your AWS SSH assets are protected by a VPN, the VPN should
   be connected in order to be able to `ssh` in to the resources in that
@@ -33,7 +33,7 @@ to:
   
 ## Environment Variables
 
-### `PRIVKEYHOME`
+### `AWS_SSH_PRIVKEYHOME`
 
 The directory where `assumerole` will look for private keys. The default location
 is `~/.ssh`.
@@ -41,7 +41,7 @@ is `~/.ssh`.
 ### `AWS_SSH_FORCE_SSH_KEY`
 
 The name of the private key to use to connect to the EC2 instances. The key will
-be searched in `PRIVKEYHOME` if it is a relative path (does not start with a `/`).
+be searched in `AWS_SSH_PRIVKEYHOME` if it is a relative path (does not start with a `/`).
 If the name starts with a `/`, that absolute path will be used.
 
 ## Subcommands

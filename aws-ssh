@@ -88,7 +88,7 @@ _get_bastion_ip() {
     fi
     if [[ ${SSH_KEYNAME} != /* ]]
     then
-      SSH_KEYNAME=${PRIVKEYHOME:-~/.ssh}/${SSH_KEYNAME}
+      SSH_KEYNAME=${PKH:-~/.ssh}/${SSH_KEYNAME}
     fi
 
     BASTION_PRIVATE_IP=${3}
@@ -180,13 +180,17 @@ case ${1} in
     echo "INFO -   ${0} ecsservicetunnel <service>"
     echo "INFO -   ${0} dockerexec <service>"
     echo ""
-    echo "Set PRIVKEYHOME envvar to tell me where your private keys are."
+    echo "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
+    echo "where your private keys are."
     echo "Default is ~/.ssh"
     echo "Set AWS_SSH_FORCE_SSH_KEY to override use of bastions key"
     echo "in favor of your own key (requires your pubkey to be present"
     echo "on the EC2 instances)"
     ;;
 esac
+
+[[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
+[[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
   bastion )
