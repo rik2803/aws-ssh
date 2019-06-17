@@ -166,6 +166,9 @@ ECS_HOST_IPS=""
 RDS_ENDPOINTS=""
 SSH_OPTIONS="-oStrictHostKeyChecking=no"
 
+[[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
+[[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
+
 case ${1} in
   bastion|ecs|rdstunnel|dockerps|ecsservicetunnel|dockerexec )
     _get_bastion_ip
@@ -188,9 +191,6 @@ case ${1} in
     echo "on the EC2 instances)"
     ;;
 esac
-
-[[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
-[[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
   bastion )
