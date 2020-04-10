@@ -178,7 +178,7 @@ case ${1} in
     echo "INFO - Usage:"
     echo "INFO -   ${0} bastion [command]"
     echo "INFO -   ${0} ecs [command]"
-    echo "INFO -   ${0} ecsscp [command]"
+    echo "INFO -   ${0} ecsscp"
     echo "INFO -   ${0} dockerps"
     echo "INFO -   ${0} rdstunnel"
     echo "INFO -   ${0} ecsservicetunnel <service>"
