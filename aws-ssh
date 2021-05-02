@@ -136,9 +136,9 @@ _get_rds_endpoints() {
 }
 
 _get_ec2_instances() {
-  EC2_INSTANCES=$(aws ec2 describe-instances \
-    --query "Reservations[*].Instances[*].[PrivateIpAddress,InstanceId,Placement.AvailabilityZone,Tags[?Key=='Name'].Value]" | \
-    jq -r '.[][] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3][0]|split(" ")|join("")')
+    EC2_INSTANCES=$(aws ec2 describe-instances \
+      --query "Reservations[*].Instances[*].[PrivateIpAddress,InstanceId,Placement.AvailabilityZone,Tags[?Key=='Name'].Value,State.Name][]" | \
+      jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3][0] + ":" + .[4]|split(" ")|join("")')
 
   if [[ -z ${EC2_INSTANCES} ]]; then
     fail "Unable to find EC2 instances"
@@ -205,8 +205,10 @@ _load_private_key() {
 
 _selection_menu() {
   SAVED_PS3="${PS3}"
+  SAVED_COLUMNS="${COLUMNS}"
 
   PS3="Enter a number: "
+  COLUMNS="20"
   select choice in ${@}; do
     if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
       SELECTION_CHOICE=${choice}
@@ -214,6 +216,7 @@ _selection_menu() {
     fi
   done
   PS3="${SAVED_PS3}"
+  COLUMNS="${SAVED_COLUMNS}"
 }
 
 typeset -a ECS_HOST_IPS_ARRAY
