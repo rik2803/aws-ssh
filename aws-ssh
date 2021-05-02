@@ -198,8 +198,8 @@ _load_private_key() {
   then
     ssh-add "${aws_ssh_key_dirname}/id_rsa_${aws_ssh_key_basename}.pem"
   else
-    echo "ERROR - Private key not found"
-    exit 1
+    warning "Private key not found, trying to connect using SSM"
+    AWS_SSH_SSM=1
   fi
 }
 
