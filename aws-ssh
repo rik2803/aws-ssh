@@ -100,7 +100,7 @@ _get_bastion_ip() {
     BASTION_INSTANCE_ID=${4}
     BASTION_AZ=${5}
   else
-    fail "Unable to find a bastion EC2 instance"
+    warning "Unable to find a bastion EC2 instance"
   fi
 }
 
@@ -178,8 +178,8 @@ _load_private_key() {
     aws_ssh_key_dirname=$(dirname ${AWS_SSH_SSM_PRIVKEY:-~/.ssh/dummy})
     aws_ssh_key_basename=$(basename ${AWS_SSH_SSM_PRIVKEY:-id_rsa})
   else
-    aws_ssh_key_dirname=$(dirname ${AWS_SSH_KEYNAME})
-    aws_ssh_key_basename=$(basename ${AWS_SSH_KEYNAME})
+    aws_ssh_key_dirname=$(dirname "${AWS_SSH_KEYNAME}")
+    aws_ssh_key_basename=$(basename "${AWS_SSH_KEYNAME}")
   fi
 
   if ssh-add -l | grep -q "${aws_ssh_key_dirname}/${aws_ssh_key_basename}"
