@@ -128,7 +128,7 @@ _get_ecs_private_ips() {
 _get_rds_endpoints() {
   RDS_ENDPOINTS=$(aws rds describe-db-instances \
     --query "DBInstances[*].Endpoint.[Address,Port]" \
-    --output text | tr '[:space:]' ':')
+    --output text | tr ' \t' ':')
 
   if [[ -z ${RDS_ENDPOINTS} ]]; then
     fail "Unable to find RDS instances"
