@@ -161,7 +161,7 @@ _copy_public_key_to_bastion() {
       --instance-id ${BASTION_INSTANCE_ID} \
       --availability-zone ${BASTION_AZ} \
       --instance-os-user ec2-user \
-      --ssh-public-key file://${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} >/dev/null 2>&1; then
+      --ssh-public-key file://${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} >/dev/null; then
         success "Successfully copied ${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} to bastion host."
     else
         fail "An error occurred while copying ${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} to bastion host."

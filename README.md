@@ -44,6 +44,10 @@ The name of the private key to use to connect to the EC2 instances. The key will
 be searched in `AWS_SSH_PRIVKEYHOME` if it is a relative path (does not start with a `/`).
 If the name starts with a `/`, that absolute path will be used.
 
+### `AWS_SSH_SSM`
+
+### `AWS_SSH_SSM_PUBKEY` and `AWS_SSH_SSM_PRIVKEY`
+
 ## Subcommands
 
 ### `bastion`
