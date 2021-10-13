@@ -30,6 +30,9 @@ to:
 * If access to your AWS SSH assets are protected by a VPN, the VPN should
   be connected in order to be able to `ssh` in to the resources in that
   account.
+* When using SSM to connect, you should install thw _SessionManagerPlugin_ for
+  the AWS CLI. See [here](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-troubleshooting.html#plugin-not-found)
+  for instructions.
   
 ## Environment Variables
 
