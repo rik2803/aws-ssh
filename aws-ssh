@@ -248,7 +248,7 @@ SSH_OPTIONS="-oStrictHostKeyChecking=no"
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ec2|ssm|rdstunnel|dockerps|ecsservicetunnel|dockerexec )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|dockerps|ecsservicetunnel|dockerexec )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -256,6 +256,7 @@ case ${1} in
     info "Usage:"
     info "  ${0} bastion [command]"
     info "  ${0} ecs [command]"
+    info "  ${0} ecsscp"
     info "  ${0} ec2"
     info "  ${0} ssm"
     info "  ${0} dockerps"
@@ -292,6 +293,18 @@ case ${1} in
         then
           ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} ${@}"
         fi
+      fi
+    done
+    ;;
+  ecsscp )
+    _get_ecs_private_ips
+    echo "INFO - Show commands to scp files from ECS ec2 instances"
+    shift
+    for h in ${ECS_HOST_IPS_ARRAY[*]}
+    do
+      if [[ ${h} != "None" ]]
+      then
+        echo "scp -o ProxyCommand=\"ssh -A ec2-user@${BASTION_IP} -W ${h}:22\" ec2-user@${h}:/tmp/source_file /tmp/target_file"
       fi
     done
     ;;
