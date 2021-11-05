@@ -22,13 +22,13 @@ to:
 * [`aws-sts-assumerole`](https://github.com/rik2803/aws-sts-assumerole)
 * Active credentials for the account you want to interact with. These
   credentials can be set with previous dependency, `aws-sts-assumerole`.
-* A valid private SSH key for the account. The SSH key should have the
-  name as the key name in AWS, and should be available in the directory
-  `~/.ssh` (default) or the directory set in the environment variable
+* (**optional**, only required when not using SSM) A valid private SSH key for the account.
+  The SSH key should have the name as the key name in AWS, and should be available in
+  the directory `~/.ssh` (default) or the directory set in the environment variable
   `${AWS_SSH_PRIVKEYHOME}`. The private key will be loaded with `ssh-add` if not
   already loaded.
 * If access to your AWS SSH assets are protected by a VPN, the VPN should
-  be connected in order to be able to `ssh` in to the resources in that
+  be connected to be able to `ssh` in to the resources in that
   account.
 * When using SSM to connect, you should install thw _SessionManagerPlugin_ for
   the AWS CLI. See [here](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-troubleshooting.html#plugin-not-found)
