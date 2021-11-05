@@ -1,16 +1,19 @@
 #! /usr/bin/env bash
 
 _get_service_port_and_ecshost_and_dockerid() {
-  SERVICENAME=${1:-unknown}
+  SERVICE_NAME=${1:-unknown}
 
   _get_ecs_private_ips >/dev/null 2>&1
 
-  ECSHOST_AND_PORT=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
+  local ecshost_and_port
+  local ecshost_and_id
+
+  ecshost_and_port=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
   do
     if [[ ${h} != "None" ]]
     then
       PORT=$(ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
-        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.Ports}}\"" | \
+        ec2-user@${h} "docker ps --filter \"name=${SERVICE_NAME}\" --format \"{{.Ports}}\"" | \
         awk -F ':' '{print $2}' | awk -F '-' '{print $1}')
       if [[ -n ${PORT} ]]
       then
@@ -20,12 +23,12 @@ _get_service_port_and_ecshost_and_dockerid() {
     fi
   done)
 
-  ECSHOST_AND_ID=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
+  ecshost_and_id=$(for h in ${ECS_HOST_IPS_ARRAY[*]}
   do
     if [[ ${h} != "None" ]]
     then
       ID=$(ssh ${SSH_OPTIONS} -A -J ec2-user@${BASTION_IP} \
-        ec2-user@${h} "docker ps --filter \"name=${SERVICENAME}\" --format \"{{.ID}}\"")
+        ec2-user@${h} "docker ps --filter \"name=${SERVICE_NAME}\" --format \"{{.ID}}\"")
       if [[ -n ${ID} ]]
       then
         echo "${h} ${ID}"
@@ -34,40 +37,41 @@ _get_service_port_and_ecshost_and_dockerid() {
     fi
   done)
 
-  if [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_PORT}; echo $#) -eq 2 ]] && \
-     [[ $(IFS=' '; set -f; set -- ${ECSHOST_AND_ID}; echo $#) -eq 2 ]]
+  if [[ $(IFS=' '; set -f; set -- ${ecshost_and_port}; echo $#) -eq 2 ]] && \
+     [[ $(IFS=' '; set -f; set -- ${ecshost_and_id}; echo $#) -eq 2 ]]
   then
-    set -- ${ECSHOST_AND_PORT} ${ECSHOST_AND_ID}
+    set -- ${ecshost_and_port} ${ecshost_and_id}
     ECSHOST=${1}
     DOCKERPORT=${2}
     DOCKERID=${4}
   else
-    echo "ERROR: No container found where the name contains ${SERVICENAME}"
-    exit 1
+    fail "No container found where the name contains ${SERVICE_NAME}"
   fi
 }
 
 _tunnel_to_ecs_service() {
-  SERVICENAME=${1:-unknown}
+  SERVICE_NAME=${1:-unknown}
   LOCALPORT=${2:-9999}
-  _get_service_port_and_ecshost_and_dockerid ${SERVICENAME}
+  _get_service_port_and_ecshost_and_dockerid ${SERVICE_NAME}
 
+  _copy_public_key_to_bastion
   ssh -f -Nn -J ec2-user@${BASTION_IP} -L ${LOCALPORT}:localhost:${DOCKERPORT} ec2-user@${ECSHOST}
 
   if [[ $? -eq 0 ]]
   then
-    echo "INFO: Tunnel to service ${SERVICENAME} is established on localhost:${LOCALPORT}"
+    echo "INFO: Tunnel to service ${SERVICE_NAME} is established on localhost:${LOCALPORT}"
     echo "      The tunnel is running in the background, do not forget to kill the"
     echo "      corresponding ssh process."
   else
-    echo "ERROR: An error occured setting up the tunnel to service ${SERVICE}"
+    fail "An error occured setting up the tunnel to service ${SERVICE}"
   fi
 }
 
 _dockerexec() {
-  SERVICENAME=${1}
+  # This will not be possible when using SSM and ec2-instance-connect
+  SERVICE_NAME=${1}
   CMD=${2}
-  _get_service_port_and_ecshost_and_dockerid ${SERVICENAME}
+  _get_service_port_and_ecshost_and_dockerid ${SERVICE_NAME}
 
   ssh -tt -J ec2-user@${BASTION_IP} ec2-user@${ECSHOST} "docker exec -ti ${DOCKERID} ${CMD}"
 }
@@ -75,26 +79,28 @@ _dockerexec() {
 _get_bastion_ip() {
   set -- $(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=*astion*" \
-    --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress]" \
-    --output text)
-  if [ -n "${1}" -a -n "${2}" -a -n "${3}" ]
+    --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress,InstanceId,Placement.AvailabilityZone]" \
+    --output text | grep -v ^None)
+  if [ -n "${1}" -a -n "${2}" -a -n "${3}" -a -n "${4}" ]
   then
     BASTION_IP=${1}
-    if [[ -n ${AWS_SSH_FORCE_SSH_KEY} ]]
-    then
-      SSH_KEYNAME=${AWS_SSH_FORCE_SSH_KEY}
+    if [[ -n ${AWS_SSH_FORCE_SSH_KEY} ]]; then
+      AWS_SSH_KEYNAME=${AWS_SSH_FORCE_SSH_KEY}
+    elif [[ "${2}" != "None" ]]; then
+      AWS_SSH_KEYNAME=${2}
     else
-      SSH_KEYNAME=${2}
+      [[ ${AWS_SSH_SSM:-0} != 1 ]] && warning "The bastion has no KeyName, switching to SSM for authentication."
+      export AWS_SSH_SSM=1
     fi
-    if [[ ${SSH_KEYNAME} != /* ]]
-    then
-      SSH_KEYNAME=${PKH:-~/.ssh}/${SSH_KEYNAME}
+    if [[ ${AWS_SSH_KEYNAME} != /* ]] && [[ ${AWS_SSH_SSM:-0} != 1 ]]; then
+      AWS_SSH_KEYNAME=${PKH:-~/.ssh}/${AWS_SSH_KEYNAME}
     fi
 
     BASTION_PRIVATE_IP=${3}
+    BASTION_INSTANCE_ID=${4}
+    BASTION_AZ=${5}
   else
-    echo "ERROR - Unable to find a bastion EC2 instance"
-    exit 1
+    warning "Unable to find a bastion EC2 instance"
   fi
 }
 
@@ -122,86 +128,161 @@ _get_ecs_private_ips() {
 _get_rds_endpoints() {
   RDS_ENDPOINTS=$(aws rds describe-db-instances \
     --query "DBInstances[*].Endpoint.[Address,Port]" \
-    --output text)
+    --output text | tr ' \t' ':')
 
-  if [ -z ${RDS_ENDPOINTS} ]
-  then
-    echo "ERROR - Unable to find RDS instances"
-    exit 1
+  if [[ -z ${RDS_ENDPOINTS} ]]; then
+    fail "Unable to find RDS instances"
   fi
+}
 
+_get_ec2_instances() {
+    EC2_INSTANCES=$(aws ec2 describe-instances \
+      --query "Reservations[*].Instances[*].[PrivateIpAddress,InstanceId,Placement.AvailabilityZone,Tags[?Key=='Name'].Value,State.Name][]" | \
+      jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3][0] + ":" + .[4]|split(" ")|join("")')
+
+  if [[ -z ${EC2_INSTANCES} ]]; then
+    fail "Unable to find EC2 instances"
+  fi
+}
+
+_get_ssm_instances() {
+  SSM_INSTANCES=$(aws ssm describe-instance-information \
+    --query "InstanceInformationList[*].[InstanceId, PlatformType, PlatformName, ComputerName]" | \
+    jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3]|split(" ")|join("")')
+
+  if [[ -z ${SSM_INSTANCES} ]]; then
+    fail "Unable to find EC2 instances"
+  fi
+}
+
+_copy_public_key_to_bastion() {
+  if [[ ${AWS_SSH_SSM:-0} == 1 ]]; then
+    if aws ec2-instance-connect send-ssh-public-key \
+      --instance-id ${BASTION_INSTANCE_ID} \
+      --availability-zone ${BASTION_AZ} \
+      --instance-os-user ec2-user \
+      --ssh-public-key file://${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} >/dev/null; then
+        success "Successfully copied ${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} to bastion host."
+    else
+        fail "An error occurred while copying ${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub} to bastion host."
+    fi
+  fi
 }
 
 _load_private_key() {
+  local aws_ssh_key_dirname
+  local aws_ssh_key_basename
+
   ### Load the private Key
-  KEYDIRNAME=$(dirname ${SSH_KEYNAME})
-  KEYBASENAME=$(basename ${SSH_KEYNAME})
-  if ssh-add -l | grep -q $(basename ${SSH_KEYNAME})
-  then
-    echo "INFO - Private key ${SSH_KEYNAME} already loaded"
-  elif [[ -e ${KEYDIRNAME}/${KEYBASENAME} ]]
-  then
-    ssh-add ${KEYDIRNAME}/${KEYBASENAME}
-  elif [[ -e ${KEYDIRNAME}/${KEYBASENAME}.pem ]]
-  then
-    ssh-add ${KEYDIRNAME}/${KEYBASENAME}.pem
-  elif [[ -e ${KEYDIRNAME}/id_rsa_${KEYBASENAME} ]]
-  then
-    ssh-add ${KEYDIRNAME}/id_rsa_${KEYBASENAME}
-  elif [[ -e ${KEYDIRNAME}/id_rsa_${KEYBASENAME}.pem ]]
-  then
-    ssh-add ${KEYDIRNAME}/id_rsa_${KEYBASENAME}.pem
+  if [[ ${AWS_SSH_SSM:-0} == 1 ]]; then
+    aws_ssh_key_dirname=$(dirname ${AWS_SSH_SSM_PRIVKEY:-~/.ssh/dummy})
+    aws_ssh_key_basename=$(basename ${AWS_SSH_SSM_PRIVKEY:-id_rsa})
   else
-    echo "ERROR - Private key ${SSH_KEYNAME} not found"
-    exit 1
+    aws_ssh_key_dirname=$(dirname "${AWS_SSH_KEYNAME}")
+    aws_ssh_key_basename=$(basename "${AWS_SSH_KEYNAME}")
   fi
+
+  if ssh-add -l | grep -q "${aws_ssh_key_dirname}/${aws_ssh_key_basename}"
+  then
+    info "Private key ${aws_ssh_key_dirname}/${aws_ssh_key_basename} already loaded"
+  elif [[ -e ${aws_ssh_key_dirname}/${aws_ssh_key_basename} ]]
+  then
+    ssh-add "${aws_ssh_key_dirname}/${aws_ssh_key_basename}"
+  elif [[ -e ${aws_ssh_key_dirname}/${aws_ssh_key_basename}.pem ]]
+  then
+    ssh-add "${aws_ssh_key_dirname}/${aws_ssh_key_basename}.pem"
+  elif [[ -e ${aws_ssh_key_dirname}/id_rsa_${aws_ssh_key_basename} ]]
+  then
+    ssh-add "${aws_ssh_key_dirname}/id_rsa_${aws_ssh_key_basename}"
+  elif [[ -e ${aws_ssh_key_dirname}/id_rsa_${aws_ssh_key_basename}.pem ]]
+  then
+    ssh-add "${aws_ssh_key_dirname}/id_rsa_${aws_ssh_key_basename}.pem"
+  else
+    warning "Private key not found, trying to connect using SSM"
+    AWS_SSH_SSM=1
+  fi
+}
+
+_selection_menu() {
+  SAVED_PS3="${PS3}"
+  SAVED_COLUMNS="${COLUMNS}"
+
+  PS3="Enter a number: "
+  COLUMNS="20"
+  select choice in ${@}; do
+    if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
+      SELECTION_CHOICE=${choice}
+      break
+    fi
+  done
+  PS3="${SAVED_PS3}"
+  COLUMNS="${SAVED_COLUMNS}"
 }
 
 typeset -a ECS_HOST_IPS_ARRAY
 
+gray='\033[37m'
+blue='\033[36m'
+red='\033[31m'
+green='\033[32m'
+orange='\033[33m'
+reset='\033[0m'
+
+info()    { echo -e "${blue}INFO: $*${reset}"; }
+plain()   { echo -e "${green}$*${reset}"; }
+warning() { echo -e "${orange}WARN: $*${reset}"; }
+error()   { echo -e "${red}ERROR: $*${reset}"; }
+success() { echo -e "${green}✔ $*${reset}"; }
+fail()    { echo -e "${red}✖ $*${reset}"; exit 1; }
+debug()   { [[ "${DEBUG}" == "true" ]] && echo -e "${gray}DEBUG: $*${reset}" || true; }
+
 BASTION_IP=""
 BASTION_PRIVATE_IP=""
-SSH_KEYNAME=""
+AWS_SSH_KEYNAME=""
 ECS_HOST_IPS=""
 RDS_ENDPOINTS=""
 SSH_OPTIONS="-oStrictHostKeyChecking=no"
 
+[[ ${AWS_SSH_SSM} -eq 1 ]] || warning "Envvar AWS_SSH_SSM not set to 1, not using SSM to connect."
 [[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ecsscp|rdstunnel|dockerps|ecsservicetunnel|dockerexec )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|dockerps|ecsservicetunnel|dockerexec )
     _get_bastion_ip
     _load_private_key
     ;;
   * )
-    echo "INFO - Usage:"
-    echo "INFO -   ${0} bastion [command]"
-    echo "INFO -   ${0} ecs [command]"
-    echo "INFO -   ${0} ecsscp"
-    echo "INFO -   ${0} dockerps"
-    echo "INFO -   ${0} rdstunnel"
-    echo "INFO -   ${0} ecsservicetunnel <service>"
-    echo "INFO -   ${0} dockerexec <service>"
-    echo ""
-    echo "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
-    echo "where your private keys are."
-    echo "Default is ~/.ssh"
-    echo "Set AWS_SSH_FORCE_SSH_KEY to override use of bastions key"
-    echo "in favor of your own key (requires your pubkey to be present"
-    echo "on the EC2 instances)"
+    info "Usage:"
+    info "  ${0} bastion [command]"
+    info "  ${0} ecs [command]"
+    info "  ${0} ecsscp"
+    info "  ${0} ec2"
+    info "  ${0} ssm"
+    info "  ${0} dockerps"
+    info "  ${0} rdstunnel"
+    info "  ${0} ecsservicetunnel <service>"
+    info "  ${0} dockerexec <service>"
+    info ""
+    info "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
+    info "where your private keys are."
+    info "Default is ~/.ssh"
+    info "Set AWS_SSH_FORCE_SSH_KEY to override use of bastions key"
+    info "in favor of your own key (requires your pubkey to be present"
+    info "on the EC2 instances)"
     ;;
 esac
 
 case ${1} in
   bastion )
-    echo "INFO - Log in to bastion account"
+    info "Log in to bastion account"
     shift
+    _copy_public_key_to_bastion
     ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} ${@}
     ;;
   ecs )
     _get_ecs_private_ips
-    echo "INFO - Show commands to connect to ECS ec2 instances"
+    info "Show commands to connect to ECS ec2 instances"
     shift
     for h in ${ECS_HOST_IPS_ARRAY[*]}
     do
@@ -227,26 +308,58 @@ case ${1} in
       fi
     done
     ;;
+  ec2 )
+    plain ""
+    plain "Select the EC2 instance to connect to using SSM:"
+    _get_ec2_instances
+
+    _selection_menu ${EC2_INSTANCES}
+
+    SAVED_IFS="${IFS}"
+    IFS=':' read -a array <<< "${SELECTION_CHOICE}"
+    IFS="${SAVED_IFS}"
+
+    info "Starting SSM session to EC2 instance with name tag ${array[3]}."
+    aws ssm start-session --target "${array[1]}"
+    ;;
+  ssm )
+    plain ""
+    plain "Select the SSM managed instance to connect to using:"
+    _get_ssm_instances
+
+    _selection_menu ${SSM_INSTANCES}
+
+    SAVED_IFS="${IFS}"
+    IFS=':' read -a array <<< "${SELECTION_CHOICE}"
+    IFS="${SAVED_IFS}"
+
+    info "Starting SSM session to EC2 instance with name tag ${array[3]}."
+    aws ssm start-session --target "${array[0]}"
+    ;;
   rdstunnel )
-    echo "INFO - Show command to setup tunnel to RDS"
+    plain ""
+    plain "Select the DB to setup a tunnel to from this list:"
     _get_rds_endpoints
-    set -- ${RDS_ENDPOINTS}
-    while [[ ${#} -gt 1 ]]
-    do
-      ENDPOINT=${1}
-      PORT=${2}
-      shift; shift
-      echo "ssh ${SSH_OPTIONS} -f -Nnt -A -L ${PORT}:${ENDPOINT}:${PORT} ec2-user@${BASTION_IP}"
-    done
+    _selection_menu ${RDS_ENDPOINTS}
+
+    SAVED_IFS="${IFS}"
+    IFS=':' read -a array <<< "${SELECTION_CHOICE}"
+    IFS="${SAVED_IFS}"
+
+    _copy_public_key_to_bastion
+    local_port="${AWS_SSH_RDS_LOCAL_PORT:-${array[1]}}"
+    info "Starting local tunnel to ${array[0]} on local port ${local_port}."
+    info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
+    ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
     ;;
   dockerps )
-    echo "INFO - Show docker container info on all ECS hosts"
+    info "Show docker container info on all ECS hosts"
     _get_ecs_private_ips
     for h in ${ECS_HOST_IPS_ARRAY[*]}
     do
       if [[ ${h} != "None" ]]
       then
-        echo "INFO - Show docker containers on ${h}"
+        info "Show docker containers on ${h}"
         ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
       fi
     done

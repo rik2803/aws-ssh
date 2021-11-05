@@ -30,6 +30,9 @@ to:
 * If access to your AWS SSH assets are protected by a VPN, the VPN should
   be connected in order to be able to `ssh` in to the resources in that
   account.
+* When using SSM to connect, you should install thw _SessionManagerPlugin_ for
+  the AWS CLI. See [here](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-troubleshooting.html#plugin-not-found)
+  for instructions.
   
 ## Environment Variables
 
@@ -43,6 +46,10 @@ is `~/.ssh`.
 The name of the private key to use to connect to the EC2 instances. The key will
 be searched in `AWS_SSH_PRIVKEYHOME` if it is a relative path (does not start with a `/`).
 If the name starts with a `/`, that absolute path will be used.
+
+### `AWS_SSH_SSM`
+
+### `AWS_SSH_SSM_PUBKEY` and `AWS_SSH_SSM_PRIVKEY`
 
 ## Subcommands
 
