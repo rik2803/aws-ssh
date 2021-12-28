@@ -207,14 +207,18 @@ _selection_menu() {
   SAVED_PS3="${PS3}"
   SAVED_COLUMNS="${COLUMNS}"
 
-  PS3="Enter a number: "
-  COLUMNS="20"
-  select choice in ${@}; do
-    if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
-      SELECTION_CHOICE=${choice}
-      break
-    fi
-  done
+  if [[ ${#} -eq 1 ]]; then
+    SELECTION_CHOICE="${@}"
+  else
+    PS3="Enter a number: "
+    COLUMNS="20"
+    select choice in "${@}"; do
+      if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
+        SELECTION_CHOICE=${choice}
+        break
+      fi
+    done
+  fi
   PS3="${SAVED_PS3}"
   COLUMNS="${SAVED_COLUMNS}"
 }
