@@ -7,28 +7,40 @@ to:
 
 * Bastion host
 * ECS host
-* RDS database instance
+* RDS database instance (tunnel)
+
+For EC2 instances that are registered in SSM, use `aws-ssh ssm` to connect to those
+instances over SSM. This also works for instances that do not have a public IP address
+and are not reachable over the internet.
 
 ## How it works
+
+For SSH connections:
 
 * Find the IP address of a EC2 instance with a tag `bastion`
 * Find the IP address of EC2 instances in the private networks
 * Get the `ssh` key name assigned to the `bastion` host
 * Show the `ssh` command to set up the tunnel or to log in to the
-  host
+  host (deprecated for non-public instances, it's better to use `aws-ssh ssm`)
+
+For SSM connections:
+
+* Get the list of EC2 instances registered in SSM
+* Setup the connection to the host
   
 ## Prerequisites
 
-* [`aws-sts-assumerole`](https://github.com/rik2803/aws-sts-assumerole)
+* [`aws-sts-assumerole`](https://github.com/rik2803/aws-sts-assumerole) or any other
+  way to set your AWS credentials as shell environment variables.
 * Active credentials for the account you want to interact with. These
-  credentials can be set with previous dependency, `aws-sts-assumerole`.
-* (**optional**, only required when not using SSM) A valid private SSH key for the account.
+  credentials can be set with previous dependency, `aws-sts-assumerole` or ...
+* (**optional**, only required when **not** using SSM) A valid private SSH key for the account.
   The SSH key should have the name as the key name in AWS, and should be available in
   the directory `~/.ssh` (default) or the directory set in the environment variable
   `${AWS_SSH_PRIVKEYHOME}`. The private key will be loaded with `ssh-add` if not
   already loaded.
 * If access to your AWS SSH assets are protected by a VPN, the VPN should
-  be connected to be able to `ssh` in to the resources in that
+  be up and running to be able to `ssh` into the resources in that
   account.
 * When using SSM to connect, you should install thw _SessionManagerPlugin_ for
   the AWS CLI. See [here](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-troubleshooting.html#plugin-not-found)
