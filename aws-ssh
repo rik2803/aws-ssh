@@ -245,7 +245,7 @@ ECS_HOST_IPS=""
 RDS_ENDPOINTS=""
 SSH_OPTIONS="-oStrictHostKeyChecking=no"
 
-[[ ${AWS_SSH_SSM} -eq 1 ]] || warning "Envvar AWS_SSH_SSM not set to 1, not using SSM to connect."
+[[ ${AWS_SSH_SSM} -ne 1 ]] || warning "Envvar AWS_SSH_SSM not set to 1, not using SSM to connect."
 [[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
@@ -348,11 +348,19 @@ case ${1} in
     IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
     IFS="${SAVED_IFS}"
 
-    _copy_public_key_to_bastion
     local_port="${AWS_SSH_RDS_LOCAL_PORT:-${array[1]}}"
     info "Starting local tunnel to ${array[0]} on local port ${local_port}."
     info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
-    ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
+    if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
+      info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
+      ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
+    else
+      info "Using SSM as transport because AWS_SSH_SSM is set to 1."
+      _copy_public_key_to_bastion
+      ssh ${SSH_OPTIONS} \
+         -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
+         -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_INSTANCE_ID}
+    fi
     ;;
   dockerps )
     info "Show docker container info on all ECS hosts"
