@@ -63,6 +63,15 @@ If the name starts with a `/`, that absolute path will be used.
 
 ### `AWS_SSH_SSM_PUBKEY` and `AWS_SSH_SSM_PRIVKEY`
 
+### `AWS_SSH_RDS_LOCAL_PORT`
+
+Set the `AWS_SSH_RDS_LOCAL_PORT` environment variable to override the local port used for the SSH tunnel to your RDS
+database. Easier still, add the following line to your `~/.bashrc` or `~/.zshrc` file:
+
+```bash
+export AWS_SSH_RDS_LOCAL_PORT=5433
+```
+
 ## Subcommands
 
 ### `bastion`
