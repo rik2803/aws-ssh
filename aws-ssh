@@ -265,7 +265,7 @@ SSH_OPTIONS="-oStrictHostKeyChecking=no"
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -281,6 +281,7 @@ case ${1} in
     info "  ${0} opensearchtunnel"
     info "  ${0} ecsservicetunnel <service>"
     info "  ${0} dockerexec <service>"
+    info "  ${0} custombastiontunnel <ip-address> <port>"
     info ""
     info "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
     info "where your private keys are."
@@ -400,6 +401,29 @@ case ${1} in
       ssh ${SSH_OPTIONS} \
          -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
          -Nnt -A -L ${local_port}:${array[0]}:443 ec2-user@${BASTION_INSTANCE_ID}
+    fi
+    ;;
+  custombastiontunnel )
+    plain ""
+    plain "Setup a tunnel to ip:port passed as 2 arguments."
+
+    [[ -z "${2}" ]] && fail "${0} custombastiontunnel ip port"
+    [[ -z "${3}" ]] && fail "${0} custombastiontunnel ip port"
+
+    custombastiontunnel_ip_address="${2}"
+    custombastiontunnel_port="${3}"
+
+    info "Starting local tunnel to ${custombastiontunnel_ip_address} on local port ${custombastiontunnel_port}."
+    info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
+    if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
+      info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
+      ssh ${SSH_OPTIONS} -Nnt -A -L ${custombastiontunnel_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_port} ec2-user@${BASTION_IP}
+    else
+      info "Using SSM as transport because AWS_SSH_SSM is set to 1."
+      _copy_public_key_to_bastion
+      ssh ${SSH_OPTIONS} \
+         -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
+         -Nnt -A -L ${custombastiontunnel_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_port} ec2-user@${BASTION_INSTANCE_ID}
     fi
     ;;
   dockerps )
