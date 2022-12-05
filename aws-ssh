@@ -100,6 +100,20 @@ _get_bastion_ip() {
   fi
 }
 
+_get_ec2_instance_id_and_az() {
+  set -- $(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=${1}" \
+    --query "Reservations[*].Instances[*].[InstanceId,Placement.AvailabilityZone]" \
+    --output text | grep -v ^None)
+  if [ -n "${1}" -a -n "${2}" ]
+  then
+    BASTION_INSTANCE_ID=${1}
+    BASTION_AZ=${2}
+  else
+    warning "Unable to find an EC2 instance with name ${1}"
+  fi
+}
+
 _get_ecs_private_ips() {
   local ecs_host_ips_1
   ecs_host_ips_1=$(aws ec2 describe-instances \
@@ -405,10 +419,30 @@ case ${1} in
     ;;
   custombastiontunnel )
     plain ""
-    plain "Setup a tunnel to ip:port passed as 2 arguments."
+    plain "Setup a tunnel to ip:port passed as 2 arguments. A third argument can be specified to an EC2 instance other than bastion. In that case,"
+    plain "use the name of the EC2 instance to use instead."
+    plain "When using a non-bastion host, SSM should be used as transport layer."
 
-    [[ -z "${2}" ]] && fail "${0} custombastiontunnel ip port"
-    [[ -z "${3}" ]] && fail "${0} custombastiontunnel ip port"
+    [[ -z "${2}" ]] && fail "${0} custombastiontunnel ip port [remoteport] [ec2-instance-name]"
+    [[ -z "${3}" ]] && fail "${0} custombastiontunnel ip port [remoteport] [ec2-instance-name]"
+
+    if [[ -z "${4}" ]]; then
+      # local and remote port are the same
+      custombastiontunnel_local_port="${3}"
+      custombastiontunnel_remote_port="${3}"
+    else
+      custombastiontunnel_local_port="${3}"
+      custombastiontunnel_remote_port="${4}"
+    fi
+
+    if [[ -z "${5}" ]]; then
+      # Use bastion to tunnel through
+      :
+    else
+      # Use the specified instance to tunnel through
+      AWS_SSH_SSM=1
+      _get_ec2_instance_id_and_az "${5}"
+    fi
 
     custombastiontunnel_ip_address="${2}"
     custombastiontunnel_port="${3}"
@@ -417,13 +451,13 @@ case ${1} in
     info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
     if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
       info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
-      ssh ${SSH_OPTIONS} -Nnt -A -L ${custombastiontunnel_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_port} ec2-user@${BASTION_IP}
+      ssh ${SSH_OPTIONS} -Nnt -A -L ${custombastiontunnel_local_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_remote_port} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
       _copy_public_key_to_bastion
       ssh ${SSH_OPTIONS} \
          -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
-         -Nnt -A -L ${custombastiontunnel_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_port} ec2-user@${BASTION_INSTANCE_ID}
+         -Nnt -A -L ${custombastiontunnel_local_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_remote_port} ec2-user@${BASTION_INSTANCE_ID}
     fi
     ;;
   dockerps )
