@@ -63,6 +63,15 @@ If the name starts with a `/`, that absolute path will be used.
 
 ### `AWS_SSH_SSM_PUBKEY` and `AWS_SSH_SSM_PRIVKEY`
 
+### `AWS_SSH_RDS_LOCAL_PORT`
+
+Set the `AWS_SSH_RDS_LOCAL_PORT` environment variable to override the local port used for the SSH tunnel to your RDS
+database. Easier still, add the following line to your `~/.bashrc` or `~/.zshrc` file:
+
+```bash
+export AWS_SSH_RDS_LOCAL_PORT=5433
+```
+
 ## Subcommands
 
 ### `bastion`
@@ -222,6 +231,13 @@ INFO - Show command to setup tunnel to RDS
 ssh -f -Nnt -A -L 3306:mysql-01.jdien58dhh59d.eu-central-1.rds.amazonaws.com:3306 ec2-user@1.2.3.4
 ```
 
+### `custombastiontunnel`
+
+Creates a tunnel to a specific destination (passed as `<ip> <port>`) via the bastion host.
+
+```bash
+aws-ssh custombastiontunnel 1.2.3.4 3389
+```
 
 ## Troubleshooting
 
