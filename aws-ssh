@@ -78,7 +78,7 @@ _get_bastion_ip() {
     --filters "Name=tag:Name,Values=*astion*" \
     --query "Reservations[*].Instances[*].[PublicIpAddress,KeyName,PrivateIpAddress,InstanceId,Placement.AvailabilityZone]" \
     --output text | grep -v ^None)
-  if [ -n "${1}" -a -n "${2}" -a -n "${3}" -a -n "${4}" ]
+  if [ -n "${1}" ] && [ -n "${2}" ] && [ -n "${3}" ] && [ -n "${4}" ]
   then
     BASTION_IP=${1}
     if [[ -n ${AWS_SSH_FORCE_SSH_KEY} ]]; then
@@ -105,7 +105,7 @@ _get_ec2_instance_id_and_az() {
     --filters "Name=tag:Name,Values=${1}" \
     --query "Reservations[*].Instances[*].[InstanceId,Placement.AvailabilityZone]" \
     --output text | grep -v ^None)
-  if [ -n "${1}" -a -n "${2}" ]
+  if [ -n "${1}" ] && [ -n "${2}" ]
   then
     BASTION_INSTANCE_ID=${1}
     BASTION_AZ=${2}
@@ -279,7 +279,7 @@ SSH_OPTIONS="-oStrictHostKeyChecking=no"
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel|custumtunnel )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -295,14 +295,16 @@ case ${1} in
     info "  ${0} opensearchtunnel"
     info "  ${0} ecsservicetunnel <service>"
     info "  ${0} dockerexec <service>"
-    info "  ${0} custombastiontunnel <ip-address> <port>"
+    info "  ${0} custombastiontunnel <ip-address> <port> [<remoteport>] [<ec2-instance-name>]"
+    info "  ${0} customtunnel <ip-address> <port> [<remoteport>] [<ec2-instance-name>]"
     info ""
     info "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
     info "where your private keys are."
     info "Default is ~/.ssh"
     info "Set AWS_SSH_FORCE_SSH_KEY to override use of bastions key"
     info "in favor of your own key (requires your pubkey to be present"
-    info "on the EC2 instances)"
+    info "on the EC2 instances)."
+    info "Set AWS_SSH_SSM to 1 to use SSM as transport layer for the connection."
     ;;
 esac
 
@@ -417,11 +419,13 @@ case ${1} in
          -Nnt -A -L ${local_port}:${array[0]}:443 ec2-user@${BASTION_INSTANCE_ID}
     fi
     ;;
-  custombastiontunnel )
+  custombastiontunnel | customtunnel )
     plain ""
-    plain "Setup a tunnel to ip:port passed as 2 arguments. A third argument can be specified to an EC2 instance other than bastion. In that case,"
-    plain "use the name of the EC2 instance to use instead."
-    plain "When using a non-bastion host, SSM should be used as transport layer."
+    plain "Setup a tunnel to ip:port passed as 2 arguments. A third argument can be passed to specify the remote port."
+    plain "When absent, <port> is used as both local and remote port."
+    plain " Argument 4 is the optional name of an EC2 instance to use to tunnel through. By default, the bastion host"
+    plain "is used."
+    plain "When using a non-bastion host, SSM is enabled forcibly."
 
     [[ -z "${2}" ]] && fail "${0} custombastiontunnel ip port [remoteport] [ec2-instance-name]"
     [[ -z "${3}" ]] && fail "${0} custombastiontunnel ip port [remoteport] [ec2-instance-name]"
