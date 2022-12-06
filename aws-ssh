@@ -138,48 +138,70 @@ _get_ecs_private_ips() {
 }
 
 _get_rds_endpoints() {
-  RDS_ENDPOINTS=$(aws rds describe-db-instances \
+  IFS=$(echo -en "\n\b") RDS_ENDPOINTS=($(aws rds describe-db-instances \
     --query "DBInstances[*].Endpoint.[Address,Port]" \
-    --output text | tr ' \t' ':')
+    --output text | tr ' \t' ':'))
 
-  if [[ -z ${RDS_ENDPOINTS} ]]; then
+  if [[ ${#RDS_ENDPOINTS[@]} -eq 0 ]]; then
     fail "Unable to find RDS instances"
   fi
 }
 
 _get_opensearch_endpoints() {
-  OPENSEARCH_ENDPOINTS=$(aws opensearch list-domain-names \
+  IFS=$(echo -en "\n\b") OPENSEARCH_ENDPOINTS=($(aws opensearch list-domain-names \
     --query "DomainNames[*].DomainName" \
     --output text | while read domain; do \
       aws opensearch describe-domains \
         --domain-names ${domain} \
         --query "DomainStatusList[*].Endpoints.vpc" \
         --output text
-    done)
+    done))
 
-  if [[ -z ${OPENSEARCH_ENDPOINTS} ]]; then
-    fail "Unable to find RDS instances"
+  if [[ ${#OPENSEARCH_ENDPOINTS[@]} -eq 0 ]]; then
+    fail "Unable to find opensearch instances"
   fi
 }
 
 _get_ec2_instances() {
-    EC2_INSTANCES=$(aws ec2 describe-instances \
+  IFS=$(echo -en "\n\b") EC2_INSTANCES=($(aws ec2 describe-instances \
       --query "Reservations[*].Instances[*].[PrivateIpAddress,InstanceId,Placement.AvailabilityZone,Tags[?Key=='Name'].Value,State.Name][]" | \
-      jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3][0] + ":" + .[4]|split(" ")|join("")')
+      jq -r '.[] | .[3][0] + ":" + .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[4]|split(" ")|join("")'))
 
-  if [[ -z ${EC2_INSTANCES} ]]; then
+  if [[ ${#EC2_INSTANCES[@]} -eq 0 ]]; then
     fail "Unable to find EC2 instances"
   fi
 }
 
 _get_ssm_instances() {
-  SSM_INSTANCES=$(aws ssm describe-instance-information \
+  IFS=$(echo -en "\n\b") SSM_INSTANCES=($(aws ssm describe-instance-information \
     --query "InstanceInformationList[*].[InstanceId, PlatformType, PlatformName, ComputerName]" | \
-    jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3]|split(" ")|join("")')
+    jq -r '.[] | .[0] + ":" + .[1]+ ":" + .[2] + ":" + .[3]|split(" ")|join("")'))
 
-  if [[ -z ${SSM_INSTANCES} ]]; then
-    fail "Unable to find EC2 instances"
+  for i in "${!SSM_INSTANCES[@]}"; do
+    instance="${SSM_INSTANCES[$i]}"
+    instance_name=$(_get_tag_for_resource "Name" "${instance%%:*}" "instance")
+    SSM_INSTANCES[$i]="${instance_name}:${instance}"
+  done
+
+  if [[ ${#SSM_INSTANCES[@]} -eq 1 ]]; then
+    fail "Unable to find SSM instances"
   fi
+}
+
+_get_tag_for_resource() {
+  local tag_name
+  local resource_id
+  local resource_type
+  local tag_value
+
+  tag_name="${1}"
+  resource_id="${2}"
+  resource_type="${3:-instance}"
+
+  tag_value=$(aws ec2 describe-tags --filter Name="resource-type",Values="${resource_type}" \
+     --query "Tags[*]|[?Key == '${tag_name}']|[?ResourceId == '${resource_id}'].[Value][0][0]" 2>/dev/null | tr -d '"')
+
+  echo "${tag_value:-Unknown}"
 }
 
 _copy_public_key_to_bastion() {
@@ -233,13 +255,16 @@ _load_private_key() {
 _selection_menu() {
   local saved_ps3="${PS3}"
   local saved_columns="${COLUMNS}"
+  local choices
 
-  if [[ ${#} -eq 1 ]]; then
-    SELECTION_CHOICE="${*}"
+  choices=(${@})
+
+  if [[ ${#choices[@]} -eq 1 ]]; then
+    SELECTION_CHOICE="${choices[0]}"
   else
     PS3="Enter a number: "
     COLUMNS="20"
-    select choice in "${@}"; do
+    select choice in "${choices[@]}"; do
       if [[ ${REPLY} -gt 0 && ${REPLY} -le ${#} ]]; then
         SELECTION_CHOICE=${choice}
         break
@@ -348,34 +373,35 @@ case ${1} in
     plain "Select the EC2 instance to connect to using SSM:"
     _get_ec2_instances
 
-    _selection_menu ${EC2_INSTANCES}
+    _selection_menu "${EC2_INSTANCES[@]}"
 
     SAVED_IFS="${IFS}"
     IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
     IFS="${SAVED_IFS}"
 
-    info "Starting SSM session to EC2 instance with name tag ${array[3]}."
-    aws ssm start-session --target "${array[1]}"
+    info "Starting SSM session to EC2 instance with name tag ${array[0]}."
+    aws ssm start-session --target "${array[2]}"
     ;;
   ssm )
     plain ""
     plain "Select the SSM managed instance to connect to using:"
     _get_ssm_instances
 
-    _selection_menu ${SSM_INSTANCES}
+    _selection_menu "${SSM_INSTANCES[@]}"
 
     SAVED_IFS="${IFS}"
     IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
     IFS="${SAVED_IFS}"
 
-    info "Starting SSM session to EC2 instance with name tag ${array[3]}."
-    aws ssm start-session --target "${array[0]}"
+    info "Starting SSM session to EC2 instance with name tag ${array[4]}."
+    aws ssm start-session --target "${array[1]}"
     ;;
   rdstunnel )
     plain ""
     plain "Select the DB to setup a tunnel to from this list:"
     _get_rds_endpoints
-    _selection_menu ${RDS_ENDPOINTS}
+
+    _selection_menu "${RDS_ENDPOINTS[@]}"
 
     SAVED_IFS="${IFS}"
     IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
@@ -399,7 +425,8 @@ case ${1} in
     plain ""
     plain "Select the OpenSearch instance to setup a tunnel to from this list:"
     _get_opensearch_endpoints
-    _selection_menu ${OPENSEARCH_ENDPOINTS}
+
+    _selection_menu "${OPENSEARCH_ENDPOINTS[@]}"
 
     SAVED_IFS="${IFS}"
     IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
