@@ -54,7 +54,7 @@ _tunnel_to_ecs_service() {
   local localport=${2:-9999}
   _get_service_port_and_ecshost_and_dockerid ${service_name}
 
-  _copy_public_key_to_bastion
+  _copy_public_key_to_target_ec2_instance
   if ssh -f -Nn -J ec2-user@${BASTION_IP} -L ${localport}:localhost:${DOCKERPORT} ec2-user@${ECSHOST}; then
     echo "INFO: Tunnel to service ${service_name} is established on localhost:${localport}"
     echo "      The tunnel is running in the background, do not forget to kill the"
@@ -204,14 +204,14 @@ _get_tag_for_resource() {
   echo "${tag_value:-Unknown}"
 }
 
-_copy_public_key_to_bastion() {
+_copy_public_key_to_target_ec2_instance() {
   if [[ ${AWS_SSH_SSM:-0} == 1 ]]; then
     if aws ec2-instance-connect send-ssh-public-key \
       --instance-id "${BASTION_INSTANCE_ID}" \
       --availability-zone "${BASTION_AZ}" \
       --instance-os-user ec2-user \
       --ssh-public-key "file://${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub}" >/dev/null; then
-        success "Successfully copied \"${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub}\" to bastion host."
+        success "Successfully copied \"${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub}\" to target EC2 instance."
     else
         fail "An error occurred while copying \"${AWS_SSH_PUBKEY:-${HOME}/.ssh/id_rsa.pub}\" to bastion host."
     fi
@@ -297,14 +297,14 @@ BASTION_IP=""
 AWS_SSH_KEYNAME=""
 ECS_HOST_IPS=""
 RDS_ENDPOINTS=""
-SSH_OPTIONS="-oStrictHostKeyChecking=no"
+SSH_OPTIONS="-oStrictHostKeyChecking=no -oGatewayPorts=true"
 
 [[ ${AWS_SSH_SSM} -ne 1 ]] || warning "Envvar AWS_SSH_SSM not set to 1, not using SSM to connect."
 [[ -n ${PRIVKEYHOME} ]] && PKH=${PRIVKEYHOME}
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel|custumtunnel )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel|customtunnel )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -337,7 +337,7 @@ case ${1} in
   bastion )
     info "Log in to bastion account"
     shift
-    _copy_public_key_to_bastion
+    _copy_public_key_to_target_ec2_instance
     ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "${@}"
     ;;
   ecs )
@@ -415,7 +415,7 @@ case ${1} in
       ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
-      _copy_public_key_to_bastion
+      _copy_public_key_to_target_ec2_instance
       ssh ${SSH_OPTIONS} \
          -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
          -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_INSTANCE_ID}
@@ -440,7 +440,7 @@ case ${1} in
       ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
-      _copy_public_key_to_bastion
+      _copy_public_key_to_target_ec2_instance
       ssh ${SSH_OPTIONS} \
          -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
          -Nnt -A -L ${local_port}:${array[0]}:443 ec2-user@${BASTION_INSTANCE_ID}
@@ -485,7 +485,7 @@ case ${1} in
       ssh ${SSH_OPTIONS} -Nnt -A -L ${custombastiontunnel_local_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_remote_port} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
-      _copy_public_key_to_bastion
+      _copy_public_key_to_target_ec2_instance
       ssh ${SSH_OPTIONS} \
          -o ProxyCommand="sh -c \"aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p'\"" \
          -Nnt -A -L ${custombastiontunnel_local_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_remote_port} ec2-user@${BASTION_INSTANCE_ID}
