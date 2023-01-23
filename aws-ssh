@@ -49,6 +49,14 @@ _get_service_port_and_ecshost_and_dockerid() {
   fi
 }
 
+_check_bastion_ip_and_exit_if_not_set() {
+  local action
+  action="${1}"
+  if [[ -z "${BASTION_IP}" ]]; then
+    fail "BASTION_IP not set, no bastion host found but required for action \"${action}\". Exiting ..."
+  fi
+}
+
 _tunnel_to_ecs_service() {
   service_name=${1:-unknown}
   local localport=${2:-9999}
@@ -183,7 +191,7 @@ _get_ssm_instances() {
     SSM_INSTANCES[$i]="${instance_name}:${instance}"
   done
 
-  if [[ ${#SSM_INSTANCES[@]} -eq 1 ]]; then
+  if [[ ${#SSM_INSTANCES[@]} -eq 0 ]]; then
     fail "Unable to find SSM instances"
   fi
 }
@@ -336,6 +344,7 @@ esac
 case ${1} in
   bastion )
     info "Log in to bastion account"
+    _check_bastion_ip_and_exit_if_not_set "${1}"
     shift
     _copy_public_key_to_target_ec2_instance
     ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "${@}"
@@ -412,6 +421,7 @@ case ${1} in
     info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
     if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
       info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
+      _check_bastion_ip_and_exit_if_not_set "${1}"
       ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
@@ -437,6 +447,7 @@ case ${1} in
     info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
     if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
       info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
+      _check_bastion_ip_and_exit_if_not_set "${1}"
       ssh ${SSH_OPTIONS} -Nnt -A -L ${local_port}:${array[0]}:${array[1]} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
@@ -482,6 +493,7 @@ case ${1} in
     info "SSH Tunnel will start in foreground, use Ctrl-C to close the tunnel."
     if [[ ${AWS_SSH_SSM} -ne 1  ]]; then
       info "Using ssh as transport because AWS_SSH_SSM is not set to 1."
+      _check_bastion_ip_and_exit_if_not_set "${1}"
       ssh ${SSH_OPTIONS} -Nnt -A -L ${custombastiontunnel_local_port}:${custombastiontunnel_ip_address}:${custombastiontunnel_remote_port} ec2-user@${BASTION_IP}
     else
       info "Using SSM as transport because AWS_SSH_SSM is set to 1."
@@ -499,6 +511,7 @@ case ${1} in
       if [[ ${h} != "None" ]]
       then
         info "Show docker containers on ${h}"
+        _check_bastion_ip_and_exit_if_not_set "${1}"
         ssh ${SSH_OPTIONS} -t -A ec2-user@${BASTION_IP} "ssh ${SSH_OPTIONS} -A ${h} docker ps --format \\\"table {{.ID}}\\\t{{.Image}}\\\""
       fi
     done
