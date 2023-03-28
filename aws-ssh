@@ -316,7 +316,7 @@ SSH_OPTIONS="-oStrictHostKeyChecking=no -oGatewayPorts=true"
 [[ -n ${AWS_SSH_PRIVKEYHOME} ]] && PKH=${AWS_SSH_PRIVKEYHOME}
 
 case ${1} in
-  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel|customtunnel )
+  bastion|ecs|ecsscp|ec2|ssm|rdstunnel|opensearchtunnel|dockerps|ecsservicetunnel|dockerexec|custombastiontunnel|customtunnel|portforward )
     _get_bastion_ip
     _load_private_key
     ;;
@@ -334,6 +334,7 @@ case ${1} in
     info "  ${0} dockerexec <service>"
     info "  ${0} custombastiontunnel <ip-address> <port> [<remoteport>] [<ec2-instance-name>]"
     info "  ${0} customtunnel <ip-address> <port> [<remoteport>] [<ec2-instance-name>]"
+    info "  ${0} portforward <port> <remoteport>"
     info ""
     info "Set PRIVKEYHOME or AWS_SSH_PRIVKEYHOME envvar to tell me"
     info "where your private keys are."
@@ -525,6 +526,26 @@ case ${1} in
     ;;
   dockerexec)
     _dockerexec "${2:-unknown}" "${3:-/bin/bash}"
+    ;;
+
+  portforward )
+      [[ -z "${2}" ]] && fail "${0} portforward [port] [remoteport]"
+      [[ -z "${3}" ]] && fail "${0} portforward [port] [remoteport]"
+      local_port=${2}; shift
+      remote_port=${2}; shift
+
+      plain ""
+      plain "Select the SSM managed instance to connect to using:"
+      _get_ssm_instances
+
+      _selection_menu "${SSM_INSTANCES[@]}"
+
+      SAVED_IFS="${IFS}"
+      IFS=':' read -ra array <<< "${SELECTION_CHOICE}"
+      IFS="${SAVED_IFS}"
+      info "Starting SSM session to EC2 instance with name tag ${array[4]}."
+      _copy_public_key_to_target_ec2_instance
+      aws ssm start-session --target "${array[1]}" --document-name AWS-StartPortForwardingSession --parameters "{\"portNumber\":[\"${remote_port}\"], \"localPortNumber\":[\"${local_port}\"]}"
     ;;
 
 esac
