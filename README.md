@@ -239,6 +239,14 @@ Creates a tunnel to a specific destination (passed as `<ip> <port>`) via the bas
 aws-ssh custombastiontunnel 1.2.3.4 3389
 ```
 
+### `portforward`
+
+Creates a tunnel to a specific instance (by selecting it from a list) and ports (local port and remote port).
+
+```bash
+aws ssh portforward 12345 5432
+```
+
 ## Troubleshooting
 
 ### Too many authentication failures
